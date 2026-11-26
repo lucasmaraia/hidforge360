@@ -22,12 +22,16 @@ XF=${XENON_FORGE_DIR:-$REPO/.xenon-forge}
 XF_URL=https://github.com/landaire/xenon-forge.git
 XF_COMMIT=f369053666c0d56176c8fdefd7d87f3dcc168c63   # the commit every console-tested build used
 
+# Init in place rather than clone: CI restores the cached .xenon-forge/.tools
+# (DotSlash and Buck2) before this runs, so the directory may already exist.
 if [ ! -d "$XF/.git" ]; then
-	git clone --quiet "$XF_URL" "$XF"
+	mkdir -p "$XF"
+	git -C "$XF" init --quiet
+	git -C "$XF" remote add origin "$XF_URL"
 fi
-if [ "$(git -C "$XF" rev-parse HEAD)" != "$XF_COMMIT" ]; then
-	git -C "$XF" fetch --quiet origin
-	git -C "$XF" checkout --quiet "$XF_COMMIT"
+if [ "$(git -C "$XF" rev-parse -q --verify HEAD || true)" != "$XF_COMMIT" ]; then
+	git -C "$XF" fetch --quiet --depth 1 origin "$XF_COMMIT"
+	git -C "$XF" checkout --quiet --force FETCH_HEAD
 fi
 
 echo "== desk test"
