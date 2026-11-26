@@ -1,0 +1,8 @@
+load("//buck:xex.bzl", "xbox360_c_title")
+
+xbox360_c_title(
+    name = "hidprobe",
+    srcs = ["probe.c"],
+    deps = ["//src/sdk:crt-dll"],
+    manifest = "xex.toml",
+)

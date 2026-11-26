@@ -1,0 +1,339 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Teste de vibração — controle USB</title>
+<style>
+  /* Painel de bancada: uma coluna, leitura de estado à esquerda, comandos à direita. */
+  :root {
+    --bg: #14161a;
+    --panel: #1c1f25;
+    --line: #2b3038;
+    --fg: #e6e9ee;
+    --dim: #949cab;
+    --accent: #4da3ff;
+    --ok: #4ec98a;
+    --warn: #e3b341;
+    --bad: #ef6b6b;
+    --mono: ui-monospace, "Cascadia Mono", "SF Mono", Menlo, Consolas, monospace;
+    --sans: "Segoe UI", system-ui, -apple-system, Roboto, Helvetica, Arial, sans-serif;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--fg);
+    font: 15px/1.55 var(--sans);
+  }
+  .wrap {
+    max-width: 880px;
+    margin: 0 auto;
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+    padding-block: 32px 56px;
+  }
+  h1 {
+    font-size: 1.5rem;
+    line-height: 1.2;
+    margin: 0 0 6px;
+    letter-spacing: -0.01em;
+    text-wrap: balance;
+  }
+  .sub { color: var(--dim); margin: 0 0 28px; max-width: 62ch; }
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 18px;
+  }
+  .panel + .panel { margin-top: 16px; }
+  .panel h2 {
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.09em;
+    color: var(--dim);
+    margin: 0 0 14px;
+    font-weight: 600;
+  }
+  .grid { display: grid; gap: 16px; grid-template-columns: 1fr 1fr; }
+  @media (max-width: 640px) { .grid { grid-template-columns: 1fr; } }
+  dl { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 6px 14px; min-width: 0; }
+  dt { color: var(--dim); font-size: 0.85rem; }
+  dd { margin: 0; font-family: var(--mono); font-size: 0.85rem; word-break: break-word; min-width: 0; }
+  .pill {
+    display: inline-block;
+    padding: 2px 9px;
+    border-radius: 99px;
+    font-size: 0.74rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+  }
+  .pill.ok   { background: rgba(78,201,138,0.16);  color: var(--ok); }
+  .pill.warn { background: rgba(227,179,65,0.16);  color: var(--warn); }
+  .pill.bad  { background: rgba(239,107,107,0.16); color: var(--bad); }
+  .controls { display: flex; flex-wrap: wrap; gap: 10px; }
+  button {
+    font: 600 0.9rem/1 var(--sans);
+    color: var(--fg);
+    background: #262b33;
+    border: 1px solid var(--line);
+    border-radius: 7px;
+    padding: 11px 15px;
+    cursor: pointer;
+  }
+  button:hover:not(:disabled) { border-color: var(--accent); }
+  button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  button:disabled { opacity: 0.4; cursor: not-allowed; }
+  button.primary { background: var(--accent); color: #0b1016; border-color: var(--accent); }
+  button.stop { background: transparent; }
+  .log {
+    margin-top: 14px;
+    font-family: var(--mono);
+    font-size: 0.8rem;
+    background: #11141a;
+    border: 1px solid var(--line);
+    border-radius: 7px;
+    padding: 12px;
+    max-height: 190px;
+    overflow-y: auto;
+    white-space: pre-wrap;
+    color: var(--dim);
+  }
+  .log b { color: var(--fg); font-weight: 600; }
+  .bars { display: grid; gap: 7px; }
+  .bar { display: grid; grid-template-columns: 5.5rem 1fr; gap: 10px; align-items: center; font-size: 0.82rem; }
+  .bar span { color: var(--dim); }
+  .track { height: 8px; background: #11141a; border-radius: 99px; overflow: hidden; }
+  .fill { height: 100%; width: 0; background: var(--accent); transition: width 60ms linear; }
+  .btns { display: flex; flex-wrap: wrap; gap: 5px; }
+  .b {
+    font-family: var(--mono);
+    font-size: 0.72rem;
+    min-width: 2rem;
+    text-align: center;
+    padding: 3px 5px;
+    border-radius: 4px;
+    background: #11141a;
+    color: var(--dim);
+    border: 1px solid var(--line);
+  }
+  .b.on { background: var(--accent); color: #0b1016; border-color: var(--accent); }
+  .read { margin-top: 26px; }
+  .read h2 { margin-bottom: 10px; }
+  .read ul { margin: 0; padding-left: 1.15rem; color: var(--dim); }
+  .read li { margin-bottom: 8px; }
+  .read strong { color: var(--fg); }
+  code { font-family: var(--mono); font-size: 0.86em; color: var(--fg); }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <h1>Teste de vibração do controle</h1>
+  <p class="sub">
+    Liga os motores de um controle USB direto pelo navegador, pela Gamepad API do Chrome.
+    Serve para separar duas coisas: o controle não vibra em lugar nenhum, ou não vibra só no Xbox 360.
+    Abra no <strong>Chrome ou Edge</strong>, plugue o controle e <strong>aperte qualquer botão dele</strong> —
+    o navegador só revela um gamepad depois da primeira interação.
+  </p>
+
+  <div class="panel">
+    <h2>Controle detectado</h2>
+    <div class="grid">
+      <dl>
+        <dt>Estado</dt><dd id="state"><span class="pill warn">aguardando um botão</span></dd>
+        <dt>Identificação</dt><dd id="id">—</dd>
+        <dt>Índice</dt><dd id="index">—</dd>
+        <dt>Mapeamento</dt><dd id="mapping">—</dd>
+        <dt>Vibração</dt><dd id="actuator">—</dd>
+      </dl>
+      <div>
+        <div class="bars">
+          <div class="bar"><span>Motor forte</span><div class="track"><div class="fill" id="barStrong"></div></div></div>
+          <div class="bar"><span>Motor fraco</span><div class="track"><div class="fill" id="barWeak"></div></div></div>
+          <div class="bar"><span>Gatilho L</span><div class="track"><div class="fill" id="barL2"></div></div></div>
+          <div class="bar"><span>Gatilho R</span><div class="track"><div class="fill" id="barR2"></div></div></div>
+        </div>
+        <div class="btns" id="btns" style="margin-top:12px"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>Comandos</h2>
+    <div class="controls">
+      <button class="primary" data-strong="1"    data-weak="0"    data-dur="1200" disabled>Motor forte, 1,2 s</button>
+      <button              data-strong="0"    data-weak="1"    data-dur="1200" disabled>Motor fraco, 1,2 s</button>
+      <button              data-strong="1"    data-weak="1"    data-dur="2000" disabled>Os dois, 2 s</button>
+      <button              data-strong="0.25" data-weak="0.25" data-dur="2000" disabled>Os dois a 25%, 2 s</button>
+      <button id="pulse" disabled>5 pulsos curtos</button>
+      <button id="stop" class="stop" disabled>Parar</button>
+    </div>
+    <div class="log" id="log"><b>pronto.</b> plugue o controle e aperte um botão dele.</div>
+  </div>
+
+  <div class="panel read">
+    <h2>Como ler o resultado</h2>
+    <ul>
+      <li><strong>Vibrou aqui:</strong> os motores e o firmware respondem a relatório de saída por USB.
+        O problema está só no caminho do Xbox 360 — vale continuar atrás dele.</li>
+      <li><strong>Não vibrou aqui, e <code>playEffect</code> devolveu <code>complete</code>:</strong>
+        o sistema aceitou o comando e nada aconteceu. Forte indício de controle clone ou de motor com defeito —
+        muitos DS4 de terceiros usam o mesmo identificador <code>054c:09cc</code> da Sony e ignoram o relatório 0x05.</li>
+      <li><strong>Vibração aparece como <code>null</code> ou dá erro:</strong> o navegador não expôs o atuador
+        para este controle; teste no DS4Windows antes de concluir qualquer coisa.</li>
+      <li><strong>Compare com o DualSense e o DualShock 3</strong> nos mesmos botões. Os dois vibram no 360,
+        então são a referência de "controle bom" neste teste.</li>
+    </ul>
+  </div>
+
+</div>
+
+<script>
+(function () {
+  var elState = document.getElementById('state');
+  var elId = document.getElementById('id');
+  var elIndex = document.getElementById('index');
+  var elMapping = document.getElementById('mapping');
+  var elActuator = document.getElementById('actuator');
+  var elLog = document.getElementById('log');
+  var elBtns = document.getElementById('btns');
+  var bars = {
+    strong: document.getElementById('barStrong'),
+    weak: document.getElementById('barWeak'),
+    l2: document.getElementById('barL2'),
+    r2: document.getElementById('barR2')
+  };
+  var current = null;
+  var lastStrong = 0, lastWeak = 0;
+
+  function log(line) {
+    var t = new Date().toLocaleTimeString('pt-BR');
+    elLog.innerHTML = '<b>' + t + '</b>  ' + line + '\n' + elLog.innerHTML;
+  }
+
+  function pill(kind, text) {
+    return '<span class="pill ' + kind + '">' + text + '</span>';
+  }
+
+  function setButtons(enabled) {
+    var list = document.querySelectorAll('button');
+    for (var i = 0; i < list.length; i++) list[i].disabled = !enabled;
+  }
+
+  function pad() {
+    var list = navigator.getGamepads ? navigator.getGamepads() : [];
+    for (var i = 0; i < list.length; i++) if (list[i]) return list[i];
+    return null;
+  }
+
+  function describeActuator(p) {
+    var a = p.vibrationActuator;
+    if (!a) return pill('bad', 'não exposta');
+    var type = a.type || (a.effects && a.effects.join(', ')) || 'dual-rumble';
+    return pill('ok', 'disponível') + ' <span style="color:var(--dim)">' + type + '</span>';
+  }
+
+  function refresh() {
+    var p = pad();
+    if (p && (!current || current.index !== p.index)) {
+      current = p;
+      elState.innerHTML = pill('ok', 'conectado');
+      elId.textContent = p.id;
+      elIndex.textContent = String(p.index);
+      elMapping.textContent = p.mapping || '(sem mapeamento padrão)';
+      elActuator.innerHTML = describeActuator(p);
+      setButtons(true);
+      log('detectado: ' + p.id);
+    } else if (!p && current) {
+      current = null;
+      elState.innerHTML = pill('bad', 'desconectado');
+      setButtons(false);
+    }
+
+    if (p) {
+      var html = '';
+      for (var i = 0; i < p.buttons.length; i++) {
+        var on = p.buttons[i].pressed || p.buttons[i].value > 0.5;
+        html += '<span class="b' + (on ? ' on' : '') + '">' + i + '</span>';
+      }
+      elBtns.innerHTML = html;
+      var l2 = p.buttons[6] ? p.buttons[6].value : 0;
+      var r2 = p.buttons[7] ? p.buttons[7].value : 0;
+      bars.l2.style.width = (l2 * 100) + '%';
+      bars.r2.style.width = (r2 * 100) + '%';
+    }
+    bars.strong.style.width = (lastStrong * 100) + '%';
+    bars.weak.style.width = (lastWeak * 100) + '%';
+    requestAnimationFrame(refresh);
+  }
+
+  function play(strong, weak, duration) {
+    var p = pad();
+    if (!p) { log('nenhum controle; aperte um botão dele'); return Promise.resolve(); }
+    var a = p.vibrationActuator;
+    if (!a || !a.playEffect) {
+      log(pill('bad', 'sem atuador') + ' este controle não expõe vibração ao navegador');
+      return Promise.resolve();
+    }
+    lastStrong = strong; lastWeak = weak;
+    setTimeout(function () { lastStrong = 0; lastWeak = 0; }, duration);
+    log('playEffect dual-rumble  forte ' + strong.toFixed(2) + '  fraco ' + weak.toFixed(2) + '  ' + duration + ' ms');
+    return a.playEffect('dual-rumble', {
+      startDelay: 0,
+      duration: duration,
+      strongMagnitude: strong,
+      weakMagnitude: weak
+    }).then(function (r) {
+      log('&rarr; devolveu ' + pill(r === 'complete' ? 'ok' : 'warn', String(r)));
+    }).catch(function (e) {
+      log('&rarr; erro ' + pill('bad', (e && e.name) || 'falhou') + ' ' + ((e && e.message) || ''));
+    });
+  }
+
+  var list = document.querySelectorAll('button[data-strong]');
+  for (var i = 0; i < list.length; i++) {
+    (function (b) {
+      b.addEventListener('click', function () {
+        play(parseFloat(b.dataset.strong), parseFloat(b.dataset.weak), parseInt(b.dataset.dur, 10));
+      });
+    })(list[i]);
+  }
+
+  document.getElementById('pulse').addEventListener('click', function () {
+    var n = 0;
+    (function next() {
+      if (n++ >= 5) return;
+      play(1, 1, 180).then(function () { setTimeout(next, 220); });
+    })();
+  });
+
+  document.getElementById('stop').addEventListener('click', function () {
+    var p = pad();
+    if (p && p.vibrationActuator) {
+      if (p.vibrationActuator.reset) p.vibrationActuator.reset();
+      else play(0, 0, 1);
+    }
+    lastStrong = 0; lastWeak = 0;
+    log('parado');
+  });
+
+  window.addEventListener('gamepadconnected', function (e) {
+    log('evento gamepadconnected: índice ' + e.gamepad.index);
+  });
+  window.addEventListener('gamepaddisconnected', function () {
+    log('evento gamepaddisconnected');
+  });
+
+  if (!navigator.getGamepads) {
+    elState.innerHTML = pill('bad', 'sem Gamepad API');
+    log('este navegador não tem a Gamepad API; use Chrome ou Edge');
+  } else {
+    requestAnimationFrame(refresh);
+  }
+})();
+</script>
+</body>
+</html>

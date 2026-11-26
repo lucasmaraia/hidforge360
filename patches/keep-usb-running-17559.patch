@@ -1,0 +1,48 @@
+--- a/hiddriver/main.cpp	2026-11-10 01:16:36.961786000 -0300
++++ b/hiddriver/main.cpp	2026-11-10 01:16:48.940208600 -0300
+@@ -1710,6 +1710,16 @@
+ void* HidRemoveDeviceAddress = nullptr;
+ bool g_SkipUsbDriverReset = false;
+ 
++// Build with HIDDRIVER_KEEP_USB_RUNNING=1 to leave the USB stack alone on 17559 retail too.
++// Resetting the USB driver drops every USB device for a moment, mass storage included. On
++// ABadAvatar/BadUpdate setups the dashboard and the Dashlaunch helper run from a USB drive,
++// so the reset hangs the console as soon as the plugin loads. v0.1/v0.2 never reset the
++// stack and work on those setups. The trade-off is the same as on 17502: controllers have
++// to be connected after the plugin loads.
++#ifndef HIDDRIVER_KEEP_USB_RUNNING
++#define HIDDRIVER_KEEP_USB_RUNNING 0
++#endif
++
+ // The retail 17502 build is not covered by the hard-coded offsets below.
+ // Search only for known function signatures, and require each one to be unique
+ // before installing a hook. 0x80000000-0x81800000 covers the kernel/XAM
+@@ -1929,6 +1939,11 @@
+ 		DbgPrint("EINTIM: Running in retail mode\n");
+ 		UsbdGetInterfaceDescriptor = (usb_interface_descriptor_func_t)0x800D8500; // 89 43 ? ? 3D 60 ? ? 39 6B ? ? 55 4A FF 3A 7D 6A 58 2E A1 4B
+ 		XamUserBindDeviceCallback = (xam_user_bind_device_callback_func_t)0x816D9060; // 7C 8B 23 78 7C A4 2B 78 54 CA 06 3F
++#if HIDDRIVER_KEEP_USB_RUNNING
++		// No reset, so the reset entry points and the kernel patches that make a second
++		// UsbdDriverEntry call safe are not needed.
++		g_SkipUsbDriverReset = true;
++#else
+ 		UsbdPowerDownNotification = (usbd_powerdown_notification_func_t)0x800D8FC8; // argument to last function call in UsbdDriverEntry
+ 		UsbdDriverEntry = (usbd_powerdown_notification_func_t)0x800D8D08; // 7D 88 02 A6 ? ? ? ? 94 21 ? ? 3C 80 ? ? 38 A0 
+ 
+@@ -1940,6 +1955,7 @@
+ 		*(DWORD*)0x800D8F00 = 0x60000000;
+ 		*(DWORD*)0x800D8EF0 = 0x60000000;
+ 		UsbPhysicalPage = 0x801A8098;
++#endif
+ 
+ 		XNotifyTypeLimitPtr = (uint16_t*)0x816AB7A6; // Register custom notification type condition
+ 		XNotifyTimerPtr = (uint16_t*)0x816ab7aa;
+@@ -2016,7 +2032,7 @@
+ 			DbgPrint("EINTIM: USB driver reset complete.\n");
+ 		}
+ 		else {
+-			DbgPrint("EINTIM: 17502 mode keeps the USB stack running; reconnect controllers after loading the plugin.\n");
++			DbgPrint("EINTIM: Keeping the USB stack running; reconnect controllers after loading the plugin.\n");
+ 		}
+ 
+ 		// Start mapping manager thread

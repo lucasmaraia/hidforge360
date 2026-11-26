@@ -1,0 +1,10 @@
+# Mirrors the header of the official hiddriver v0.2 build, which loads on this
+# console next to Xbdm (0x91000000) and JRPC2 (0x91900000): a system DLL with
+# 4 KB pages, compressed and encrypted for retail.
+load_address = 0x90E00000
+module_flags = ["0x0000000A"]
+version = "2.0.17559.0"
+base_version = "2.0.17559.0"
+compress = true
+encrypt = "retail"
+tls_slots = 0
