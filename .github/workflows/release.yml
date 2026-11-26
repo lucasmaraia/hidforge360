@@ -12,6 +12,9 @@ jobs:
     name: Build and publish the release
     runs-on: ubuntu-latest
     container: rust:1-bookworm
+    env:
+      # buck2 refuses to run as root unless HOME is owned by root; the job HOME (/github/home) is not.
+      HOME: /root
     steps:
       - uses: actions/checkout@v4
 
