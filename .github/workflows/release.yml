@@ -1,0 +1,55 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build and publish the release
+    runs-on: ubuntu-latest
+    container: rust:1-bookworm
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cache the xenon-forge bootstrap (DotSlash + Buck2)
+        uses: actions/cache@v4
+        with:
+          path: .xenon-forge/.tools
+          key: xenon-forge-tools-f369053666c0d56176c8fdefd7d87f3dcc168c63
+
+      - name: Build both variants, audit the ELFs, run the desk test
+        run: bash tools/build.sh dist
+
+      - name: Release notes from CHANGELOG.md
+        shell: bash
+        run: |
+          version=${GITHUB_REF_NAME#v}
+          awk -v v="$version" '
+            $0 ~ "^## \\[" v "\\]" { on = 1; next }
+            on && /^## \[/ { exit }
+            on { print }
+          ' CHANGELOG.md > dist/NOTES.md
+          [ -s dist/NOTES.md ] || echo "No CHANGELOG.md section for $version." > dist/NOTES.md
+          {
+            echo
+            echo '### Files'
+            echo
+            echo '| File | SHA-1 |'
+            echo '|---|---|'
+            while read -r sum name; do echo "| \`$name\` | \`$sum\` |"; done < dist/SHA1SUMS
+            echo
+            echo '`hidforge.xex` is the normal build. `hidforge-diag.xex` writes `hidforge.log` to the USB drive and shows the driver stage on the ring of light; use it only to investigate a problem.'
+          } >> dist/NOTES.md
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          name: hidforge ${{ github.ref_name }}
+          body_path: dist/NOTES.md
+          files: |
+            dist/hidforge.xex
+            dist/hidforge-diag.xex
+            dist/SHA1SUMS
