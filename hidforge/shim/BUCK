@@ -1,0 +1,31 @@
+load("//buck:xex.bzl", "xbox360_c_title")
+
+xbox360_c_title(
+    name = "hidforge",
+    srcs = [
+        "main.cpp",
+        "hid_parser.cpp",
+        "mapping.cpp",
+        "detours_data.cpp",
+        "shim.cpp",
+        "tramp.S",
+    ],
+    cxx_compiler_flags = [
+        "-I",
+        "src/examples/hidforge",
+        "-I",
+        "src/examples/hidforge/compat",
+        "-Wno-everything",
+        "-Werror=return-type",
+        "-DHIDFORGE_DIAG=0",
+        "-ffreestanding",
+        "-mno-altivec",
+        "-mno-vmx128",
+        "-mno-vsx",
+        "-fno-vectorize",
+        "-fno-slp-vectorize",
+        "-ferror-limit=200",
+    ],
+    deps = ["//src/sdk:crt-dll"],
+    manifest = "xex.toml",
+)

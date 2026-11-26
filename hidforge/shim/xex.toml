@@ -1,0 +1,9 @@
+# Same header shape and load address as the official hiddriver v0.2, the only
+# release that runs on this console: system DLL, 4 KB pages, retail-encrypted.
+load_address = 0x90B00000
+module_flags = ["0x0000000A"]
+version = "2.0.17559.0"
+base_version = "2.0.17559.0"
+compress = true
+encrypt = "retail"
+tls_slots = 0
